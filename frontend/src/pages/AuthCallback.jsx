@@ -1,17 +1,20 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 import { setToken } from "../config";
 import Loading from "../components/Loading";
 
 export default function AuthCallback() {
-  const [params] = useSearchParams();
   const navigate = useNavigate();
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    // Token arrives in the URL fragment (e.g. #token=ghu_...). Fragments never travel
+    // to the server, so the token does not appear in Referer headers or access logs.
+    const params = new URLSearchParams(window.location.hash.slice(1));
     const token = params.get("token");
     const err = params.get("error");
+
     if (err) {
       setError(err);
       return;
@@ -20,9 +23,13 @@ export default function AuthCallback() {
       setError("No token returned from GitHub");
       return;
     }
+
     setToken(token);
+    // Strip the fragment from the address bar so the token does not linger in browser
+    // history or get exposed via a copy-pasted URL.
+    window.history.replaceState(null, "", window.location.pathname);
     navigate("/dashboard", { replace: true });
-  }, [params, navigate]);
+  }, [navigate]);
 
   return (
     <div className="min-h-screen flex items-center justify-center">

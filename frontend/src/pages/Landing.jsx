@@ -15,7 +15,7 @@ const FEATURES = [
   {
     icon: "◈",
     title: "Gap Detection",
-    body: "Flags files that were AI-generated and never modified — the ones you can't yet explain.",
+    body: "Flags AI-generated files you haven't modified and can't yet explain.",
   },
 ];
 

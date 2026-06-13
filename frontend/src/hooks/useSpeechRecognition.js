@@ -10,6 +10,14 @@ export const SPEECH_SUPPORTED = !!SpeechRecognition;
 export function useSpeechRecognition({ onTranscript } = {}) {
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef(null);
+  // Caller passes onTranscript as an inline function literal, so its identity
+  // changes every render. Reading it through a ref keeps the recognition
+  // instance stable across renders — otherwise the effect tears down and
+  // restarts mid-utterance, killing the pulsing-ring animation on click.
+  const onTranscriptRef = useRef(onTranscript);
+  useEffect(() => {
+    onTranscriptRef.current = onTranscript;
+  }, [onTranscript]);
 
   useEffect(() => {
     if (!SPEECH_SUPPORTED) return undefined;
@@ -26,8 +34,9 @@ export function useSpeechRecognition({ onTranscript } = {}) {
         if (event.results[i].isFinal) finalTranscript += transcript;
         else interimTranscript += transcript;
       }
-      if (onTranscript) {
-        onTranscript({
+      const cb = onTranscriptRef.current;
+      if (cb) {
+        cb({
           finalChunk: finalTranscript,
           interim: interimTranscript,
         });
@@ -41,7 +50,7 @@ export function useSpeechRecognition({ onTranscript } = {}) {
     return () => {
       try { rec.stop(); } catch (_) { /* noop */ }
     };
-  }, [onTranscript]);
+  }, []);
 
   const start = () => {
     const rec = recognitionRef.current;

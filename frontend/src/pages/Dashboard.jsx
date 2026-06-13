@@ -171,7 +171,9 @@ function AnalyzeRepoModal({ open, onClose, me, onAnalyzed }) {
       setStage("embedding");
       await api.post(`/api/repos/${repoId}/embed`);
       setStage("analyzing");
-      await api.post(`/api/repos/${repoId}/full-analysis`);
+      // Render free tier can cold-start (~30s) before the pipeline (~30-60s) even begins.
+      // The default 90s axios timeout fires mid-pipeline; bump just this call to 5 min.
+      await api.post(`/api/repos/${repoId}/full-analysis`, null, { timeout: 300_000 });
       setStage("done");
       onAnalyzed();
       onClose();

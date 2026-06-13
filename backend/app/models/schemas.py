@@ -190,7 +190,10 @@ class EvaluationScores(BaseModel):
 
 class EvaluationResult(BaseModel):
     scores: EvaluationScores
-    semantic_similarity: float
+    # None when the embedding service was unreachable so the candidate's
+    # answer could not be embedded — UI should hide the similarity row in
+    # that case rather than show a misleading 0.000.
+    semantic_similarity: float | None = None
     strengths: list[str]
     gaps: list[str]
     model_answer_summary: str

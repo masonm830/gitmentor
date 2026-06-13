@@ -513,7 +513,10 @@ async def run_eval(analysis_id: str = GOLDEN_ANALYSIS_ID) -> EvalReport:
                     completeness=scores["completeness"],
                     depth=scores["depth"],
                     overall=overall,
-                    semantic_similarity=res["semantic_similarity"],
+                    # Evaluator now returns None when the embedding service was
+                    # unreachable; the eval harness still wants a numeric value
+                    # for averaging and printing, so coerce at the read site.
+                    semantic_similarity=res.get("semantic_similarity") or 0.0,
                     latency_seconds=round(latency, 3),
                     passed=entry.expected_score_min <= overall <= entry.expected_score_max,
                 )

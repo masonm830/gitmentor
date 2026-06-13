@@ -371,9 +371,11 @@ function EvaluationCard({ evaluation, onNext }) {
         <ScoreBadge label="Depth" value={scores.depth} />
         <ScoreBadge label="Overall" value={scores.overall} />
       </div>
-      <div className="text-[10px] text-textmute font-mono">
-        semantic similarity: {semantic_similarity?.toFixed?.(3) ?? semantic_similarity}
-      </div>
+      {semantic_similarity != null && (
+        <div className="text-[10px] text-textmute font-mono">
+          semantic similarity: {semantic_similarity.toFixed(3)}
+        </div>
+      )}
       {strengths?.length > 0 && (
         <div>
           <div className="text-xs uppercase tracking-wider text-success mb-1">

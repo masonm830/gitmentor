@@ -44,8 +44,7 @@ _PROMPT_TEMPLATE = """Grade this interview answer.
 ## RAG-retrieved code chunks (for grounding)
 {rag_chunks}
 
-## Pre-computed semantic similarity (candidate vs model answer): {semantic_similarity:.3f}
-{similarity_note}
+{similarity_section}
 
 ## Scoring rubric — be strict
 Score each dimension 0-10. Anchor your scores to these bands:
@@ -163,13 +162,26 @@ async def evaluate_answer(
         rag_chunks = []
         errors.append(f"RAG retrieval failed: {exc}")
 
-    semantic_similarity = _semantic_similarity(user_answer, model_answer)
-    similarity_note = (
-        "The candidate's answer is semantically very close to the model answer (>0.85). "
-        "Calibrate partial credit upward, but still penalize specific factual errors or missed concepts."
-        if semantic_similarity > 0.85
-        else "Semantic similarity is informational only — grade on the rubric, not on similarity."
-    )
+    raw_similarity = _semantic_similarity(user_answer, model_answer)
+    # 0.0 is the failure sentinel from _semantic_similarity (embedding service
+    # unreachable, empty answers, or both vectors orthogonal). A genuine 0.0
+    # cosine between two non-empty natural-language answers is vanishingly rare,
+    # so collapsing it to None is safe and lets us suppress the misleading row.
+    effective_similarity: float | None = raw_similarity if raw_similarity > 0.0 else None
+
+    if effective_similarity is None:
+        similarity_section = ""
+    elif effective_similarity > 0.85:
+        similarity_section = (
+            f"## Pre-computed semantic similarity (candidate vs model answer): {effective_similarity:.3f}\n"
+            "The candidate's answer is semantically very close to the model answer (>0.85). "
+            "Calibrate partial credit upward, but still penalize specific factual errors or missed concepts."
+        )
+    else:
+        similarity_section = (
+            f"## Pre-computed semantic similarity (candidate vs model answer): {effective_similarity:.3f}\n"
+            "Semantic similarity is informational only — grade on the rubric, not on similarity."
+        )
 
     prompt = _PROMPT_TEMPLATE.format(
         question=question,
@@ -177,8 +189,7 @@ async def evaluate_answer(
         model_answer=model_answer or "(no model answer provided)",
         file_explanations=_format_file_explanations(file_explanations, relevant_files),
         rag_chunks=_format_rag_chunks(rag_chunks),
-        semantic_similarity=semantic_similarity,
-        similarity_note=similarity_note,
+        similarity_section=similarity_section,
     )
 
     llm = ClaudeProvider(model=settings.explanation_agent_model)
@@ -188,7 +199,7 @@ async def evaluate_answer(
     except Exception as exc:
         logger.exception("[InterviewEvaluator] LLM call failed")
         return {
-            "result": _fallback_result(semantic_similarity, f"LLM call failed: {exc}"),
+            "result": _fallback_result(effective_similarity, f"LLM call failed: {exc}"),
             "errors": errors + [f"InterviewEvaluator LLM failed: {exc}"],
         }
 
@@ -197,7 +208,7 @@ async def evaluate_answer(
     except (json.JSONDecodeError, ValueError) as exc:
         logger.error("[InterviewEvaluator] JSON parse failed: %s — raw[:300]=%r", exc, raw[:300])
         return {
-            "result": _fallback_result(semantic_similarity, f"JSON parse failed: {exc}"),
+            "result": _fallback_result(effective_similarity, f"JSON parse failed: {exc}"),
             "errors": errors + [f"InterviewEvaluator JSON parse failed: {exc}"],
         }
 
@@ -214,7 +225,7 @@ async def evaluate_answer(
             "depth": depth,
             "overall": overall,
         },
-        "semantic_similarity": semantic_similarity,
+        "semantic_similarity": effective_similarity,
         "strengths": data.get("strengths", []) or [],
         "gaps": data.get("gaps", []) or [],
         "model_answer_summary": data.get("model_answer_summary", "") or "",
@@ -223,7 +234,7 @@ async def evaluate_answer(
     return {"result": result, "errors": errors}
 
 
-def _fallback_result(semantic_similarity: float, reason: str) -> dict:
+def _fallback_result(semantic_similarity: float | None, reason: str) -> dict:
     return {
         "scores": {"accuracy": 0, "completeness": 0, "depth": 0, "overall": 0},
         "semantic_similarity": semantic_similarity,

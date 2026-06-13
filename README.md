@@ -97,15 +97,15 @@ The dev server runs on http://localhost:3000 and talks to the backend at http://
 
 ### Database
 
-In the Supabase SQL editor, run the schema files in this order:
+In the Supabase SQL editor, run every file in `backend/migrations/` in numeric order, `001` through `007`:
 
-1. `backend/supabase_schema.sql` (Phase 1: repos, files)
-2. `backend/supabase_schema_phase2.sql` (Phase 2: parsed_files, dependencies)
-3. `backend/supabase_schema_phase3.sql` (Phase 3: code_chunks + pgvector RPC)
-4. `backend/migrations/004_analyses_table.sql`
-5. `backend/migrations/005_analyses_add_file_explanations.sql`
-6. `backend/migrations/006_interview_sessions.sql`
-7. `backend/migrations/007_eval_runs.sql`
+1. `001_initial_schema.sql` (repos, files)
+2. `002_pgvector_code_chunks.sql` (code_chunks + pgvector RPC)
+3. `003_ast_parsed_files.sql` (parsed_files, dependencies)
+4. `004_analyses_table.sql`
+5. `005_analyses_add_file_explanations.sql`
+6. `006_interview_sessions.sql`
+7. `007_eval_runs.sql`
 
 ## Environment Variables
 

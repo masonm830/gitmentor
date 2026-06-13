@@ -31,7 +31,7 @@ app.add_middleware(
         settings.frontend_url,
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-        "https://gitmentor.vercel.app",
+        "https://gitmentor-five.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],

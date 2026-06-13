@@ -172,7 +172,7 @@ function AnalyzeRepoModal({ open, onClose, me, onAnalyzed }) {
       await api.post(`/api/repos/${repoId}/embed`);
       setStage("analyzing");
       await api.post(`/api/repos/${repoId}/full-analysis`);
-      setStage(null);
+      setStage("done");
       onAnalyzed();
       onClose();
     } catch (e) {
@@ -186,14 +186,39 @@ function AnalyzeRepoModal({ open, onClose, me, onAnalyzed }) {
   return (
     <Modal open={open} onClose={submitting ? () => {} : onClose} title="Analyze a Repository">
       {submitting ? (
-        <div className="py-6 space-y-3">
+        <div className="py-6 space-y-4">
           <Loading label={
             stage === "cloning" ? "Cloning repo…" :
-            stage === "parsing" ? "Parsing AST + dependency graph…" :
-            stage === "embedding" ? "Embedding code chunks…" :
-            stage === "analyzing" ? "Running 4-agent pipeline (60-90s)…" :
+            stage === "parsing" ? "Parsing AST…" :
+            stage === "embedding" ? "Generating embeddings…" :
+            stage === "analyzing" ? "Running analysis agents…" :
+            stage === "done" ? "Done" :
             "Working…"
           } />
+          <ol className="text-xs space-y-1">
+            {[
+              { key: "cloning", label: "Cloning repo" },
+              { key: "parsing", label: "Parsing AST" },
+              { key: "embedding", label: "Generating embeddings" },
+              { key: "analyzing", label: "Running analysis agents" },
+            ].map((step) => {
+              const order = ["cloning", "parsing", "embedding", "analyzing", "done"];
+              const currentIdx = order.indexOf(stage);
+              const stepIdx = order.indexOf(step.key);
+              const done = currentIdx > stepIdx;
+              const active = currentIdx === stepIdx;
+              return (
+                <li
+                  key={step.key}
+                  className={
+                    done ? "text-success" : active ? "text-accent" : "text-textmute"
+                  }
+                >
+                  {done ? "✓" : active ? "●" : "○"} {step.label}
+                </li>
+              );
+            })}
+          </ol>
           <p className="text-xs text-textmute">
             Don't close this window — analysis runs end-to-end.
           </p>

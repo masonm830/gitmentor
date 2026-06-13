@@ -15,3 +15,11 @@ export function setToken(token) {
 export function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
 }
+
+// All file paths displayed in the UI go through this. Backend already normalizes
+// at write time, but old rows and a few edge cases (Windows clone dirs) still
+// produce backslashes — normalize at render time as a defensive belt-and-braces.
+export function normalizeFilePath(path) {
+  if (path == null) return path;
+  return String(path).replace(/\\/g, "/");
+}

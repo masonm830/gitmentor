@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.models.schemas import HealthResponse
 from app.routers.auth import router as auth_router
+from app.routers.eval import router as eval_router
 from app.routers.interview import router as interview_router
 from app.routers.repos import router as repos_router
 from app.services.supabase import verify_connection
@@ -35,6 +36,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(repos_router)
 app.include_router(interview_router)
+app.include_router(eval_router)
 
 
 @app.get("/health", response_model=HealthResponse)

@@ -2,10 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import { api } from "../api";
+import { normalizeFilePath } from "../config";
 import Header from "../components/Header";
 import Loading from "../components/Loading";
 import Badge from "../components/Badge";
 import ScoreBadge from "../components/ScoreBadge";
+import ErrorBoundary from "../components/ErrorBoundary";
 import { useSpeechRecognition, SPEECH_SUPPORTED } from "../hooks/useSpeechRecognition";
 
 const CATEGORY_TONE = {
@@ -23,12 +25,27 @@ const CATEGORY_LABEL = {
 };
 
 export default function Interview() {
+  return (
+    <ErrorBoundary title="Interview crashed">
+      <InterviewInner />
+    </ErrorBoundary>
+  );
+}
+
+function InterviewInner() {
   const { repoId } = useParams();
   const [session, setSession] = useState(null);
   const [err, setErr] = useState(null);
   const [activeIdx, setActiveIdx] = useState(0);
   // answers[idx] = { draft: string, submittedAnswer: string|null, evaluation: object|null, submitting: bool, error: string|null }
   const [answers, setAnswers] = useState({});
+  const [loadTick, setLoadTick] = useState(0);
+
+  const retry = () => {
+    setErr(null);
+    setSession(null);
+    setLoadTick((n) => n + 1);
+  };
 
   // Load latest analysis -> start session
   useEffect(() => {
@@ -49,7 +66,7 @@ export default function Interview() {
       }
     })();
     return () => { alive = false; };
-  }, [repoId]);
+  }, [repoId, loadTick]);
 
   const ensureAnswer = (idx) =>
     answers[idx] || { draft: "", submittedAnswer: null, evaluation: null, submitting: false, error: null };
@@ -93,8 +110,18 @@ export default function Interview() {
     return (
       <div className="min-h-screen flex flex-col">
         <Header />
-        <main className="flex-1 flex items-center justify-center text-danger text-sm">
-          {err}
+        <main className="flex-1 flex items-center justify-center px-6">
+          <div className="card max-w-md text-center space-y-3">
+            <div className="text-danger text-sm font-medium">
+              Couldn't start interview
+            </div>
+            <div className="text-xs text-textmute font-mono break-words">
+              {err}
+            </div>
+            <button className="btn btn-secondary text-xs" onClick={retry}>
+              Retry
+            </button>
+          </div>
         </main>
       </div>
     );
@@ -225,7 +252,7 @@ function ChatPanel({ question, state, onDraftChange, onSubmit, onNext }) {
             <div className="mt-3 flex flex-wrap gap-1">
               {question.relevant_files.map((fp) => (
                 <Badge key={fp} tone="accent">
-                  <span className="font-mono">{fp}</span>
+                  <span className="font-mono">{normalizeFilePath(fp)}</span>
                 </Badge>
               ))}
             </div>

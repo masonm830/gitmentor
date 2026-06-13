@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { api } from "../api";
+import { normalizeFilePath } from "../config";
 import Header from "../components/Header";
 import Loading from "../components/Loading";
 import Badge from "../components/Badge";
+import ErrorBoundary from "../components/ErrorBoundary";
 
 const GAP_COLOR = {
   generated: "text-textmute",
@@ -25,10 +27,25 @@ function classifyLabel(c) {
 }
 
 export default function Analysis() {
+  return (
+    <ErrorBoundary title="Analysis crashed">
+      <AnalysisInner />
+    </ErrorBoundary>
+  );
+}
+
+function AnalysisInner() {
   const { repoId } = useParams();
   const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
   const [selected, setSelected] = useState(null);
+  const [loadTick, setLoadTick] = useState(0);
+
+  const retry = () => {
+    setErr(null);
+    setData(null);
+    setLoadTick((n) => n + 1);
+  };
 
   useEffect(() => {
     let alive = true;
@@ -44,7 +61,7 @@ export default function Analysis() {
     return () => {
       alive = false;
     };
-  }, [repoId]);
+  }, [repoId, loadTick]);
 
   const files = useMemo(() => {
     if (!data) return [];
@@ -60,8 +77,18 @@ export default function Analysis() {
     return (
       <div className="min-h-screen flex flex-col">
         <Header />
-        <main className="flex-1 flex items-center justify-center text-danger text-sm">
-          {err}
+        <main className="flex-1 flex items-center justify-center px-6">
+          <div className="card max-w-md text-center space-y-3">
+            <div className="text-danger text-sm font-medium">
+              Couldn't load analysis
+            </div>
+            <div className="text-xs text-textmute font-mono break-words">
+              {err}
+            </div>
+            <button className="btn btn-secondary text-xs" onClick={retry}>
+              Retry
+            </button>
+          </div>
         </main>
       </div>
     );
@@ -105,9 +132,9 @@ export default function Analysis() {
                     selected === f.file_path ? "bg-surface2 text-accent" : classifyColor(f.classification)
                   }`}
                   onClick={() => setSelected(f.file_path)}
-                  title={f.file_path}
+                  title={normalizeFilePath(f.file_path)}
                 >
-                  {f.file_path}
+                  {normalizeFilePath(f.file_path)}
                 </button>
               </li>
             ))}
@@ -119,7 +146,7 @@ export default function Analysis() {
           {selected ? (
             <>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="font-mono text-sm break-all">{selected}</h2>
+                <h2 className="font-mono text-sm break-all">{normalizeFilePath(selected)}</h2>
                 {gap?.classification && (
                   <Badge
                     tone={

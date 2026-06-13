@@ -288,6 +288,40 @@ async def update_interview_evaluation(
     )
 
 
+async def store_eval_run(report: dict) -> str:
+    """Insert a Phase 7 EvalReport row. Returns the new row id."""
+    client = get_client()
+    row = {
+        "pass_rate": report["pass_rate"],
+        "avg_overall": report["avg_overall"],
+        "avg_accuracy": report["avg_accuracy"],
+        "avg_completeness": report["avg_completeness"],
+        "avg_depth": report["avg_depth"],
+        "avg_semantic_similarity": report["avg_semantic_similarity"],
+        "avg_latency_seconds": report["avg_latency_seconds"],
+        "total_entries": report["total_entries"],
+        "passed": report["passed"],
+        "failed": report["failed"],
+        "per_entry_results": report["per_entry_results"],
+        "notes": report.get("notes"),
+    }
+    result = client.table("eval_runs").insert(row).execute()
+    return result.data[0]["id"]
+
+
+async def list_recent_eval_runs(limit: int = 10) -> list[dict]:
+    """Most recent eval_runs rows, newest first. Powers the /eval dashboard."""
+    client = get_client()
+    result = (
+        client.table("eval_runs")
+        .select("*")
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return result.data or []
+
+
 async def store_code_chunks(chunks: list[CodeChunk], embeddings: list[list[float]]) -> int:
     client = get_client()
     rows = []

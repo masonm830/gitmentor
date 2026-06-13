@@ -6,6 +6,7 @@ import AuthCallback from "./pages/AuthCallback";
 import Dashboard from "./pages/Dashboard";
 import Analysis from "./pages/Analysis";
 import Interview from "./pages/Interview";
+import EvalDashboard from "./pages/EvalDashboard";
 
 export default function App() {
   return (
@@ -36,6 +37,7 @@ export default function App() {
           </ProtectedRoute>
         }
       />
+      <Route path="/eval" element={<EvalDashboard />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

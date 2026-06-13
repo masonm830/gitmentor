@@ -11,7 +11,7 @@ from app.models.schemas import (
     EmbedResponse, SearchQuery, SearchResponse,
     FullAnalysisResponse,
 )
-from app.services.github import clone_and_analyze, ensure_clone
+from app.services.github import clone_and_analyze, cleanup_clone, ensure_clone
 from app.services.ast_parser import parse_file, should_skip_file
 from app.services.dependency_graph import build_dependency_graph
 from app.services.chunker import chunk_file
@@ -49,6 +49,31 @@ async def list_repos(owner: str = Query(..., description="GitHub username — fi
             "latest_analyzed_at": latest["created_at"] if latest else None,
         })
     return {"repos": enriched}
+
+
+@router.delete("/repos/{repo_id}/analysis", status_code=204)
+async def delete_repo_analysis(repo_id: str):
+    """Clear analyses, code_chunks, parsed_files, dependencies, and any
+    interview_sessions for a repo. Leaves the repo row and files manifest
+    intact so the dashboard's rerun flow can re-run /analyze → /embed →
+    /full-analysis from a clean slate."""
+    repo = await db.get_repo(repo_id)
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repo not found")
+    await db.delete_analysis_artifacts(repo_id)
+    return None
+
+
+@router.delete("/repos/{repo_id}", status_code=204)
+async def delete_repo(repo_id: str):
+    """Full delete: removes the repo plus every related row across all tables.
+    Also removes the local clone directory on disk."""
+    repo = await db.get_repo(repo_id)
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repo not found")
+    await db.delete_repo_cascade(repo_id)
+    cleanup_clone(repo_id)
+    return None
 
 
 @router.get("/repos/{repo_id}/analysis")

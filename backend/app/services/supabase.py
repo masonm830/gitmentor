@@ -73,6 +73,28 @@ async def update_repo_status(repo_id: str, status: str) -> None:
     client.table("repos").update({"status": status}).eq("id", repo_id).execute()
 
 
+async def delete_analysis_artifacts(repo_id: str) -> None:
+    """Clear everything produced by /analyze + /embed + /full-analysis for a
+    repo, but keep the repo row and its files manifest. interview_sessions are
+    cleared first because they FK onto analyses (no cascade)."""
+    client = get_client()
+    client.table("interview_sessions").delete().eq("repo_id", repo_id).execute()
+    client.table("analyses").delete().eq("repo_id", repo_id).execute()
+    client.table("code_chunks").delete().eq("repo_id", repo_id).execute()
+    client.table("parsed_files").delete().eq("repo_id", repo_id).execute()
+    client.table("dependencies").delete().eq("repo_id", repo_id).execute()
+    await update_repo_status(repo_id, "pending")
+
+
+async def delete_repo_cascade(repo_id: str) -> None:
+    """Full delete. Order matters: analyses/interview_sessions don't cascade
+    from repos, the rest (files, parsed_files, dependencies, code_chunks) do."""
+    client = get_client()
+    client.table("interview_sessions").delete().eq("repo_id", repo_id).execute()
+    client.table("analyses").delete().eq("repo_id", repo_id).execute()
+    client.table("repos").delete().eq("id", repo_id).execute()
+
+
 async def list_repos_by_owner(owner: str) -> list[dict]:
     """Used by Phase 6 dashboard to show 'Your Repositories' for the logged-in user."""
     client = get_client()

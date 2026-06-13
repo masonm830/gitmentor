@@ -29,12 +29,18 @@ function fmtDate(s) {
   }
 }
 
+const RERUN_STAGES = ["cleaning", "parsing", "embedding", "analyzing"];
+
 export default function Dashboard() {
   const [me, setMe] = useState(null);
   const [repos, setRepos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  // {repoId: stage} for the card currently being rerun (only one at a time).
+  const [rerunState, setRerunState] = useState(null);
+  // Keyed map of {repoId: errorMessage} for inline per-card errors from rerun/delete.
+  const [rowErrors, setRowErrors] = useState({});
 
   const refresh = async (owner) => {
     if (!owner) return;
@@ -46,6 +52,42 @@ export default function Dashboard() {
       setErr(e?.response?.data?.detail || e.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const rerunRepo = async (repoId) => {
+    setRowErrors((p) => ({ ...p, [repoId]: null }));
+    try {
+      setRerunState({ repoId, stage: "cleaning" });
+      await api.delete(`/api/repos/${repoId}/analysis`);
+      setRerunState({ repoId, stage: "parsing" });
+      await api.post(`/api/repos/${repoId}/analyze`);
+      setRerunState({ repoId, stage: "embedding" });
+      await api.post(`/api/repos/${repoId}/embed`);
+      setRerunState({ repoId, stage: "analyzing" });
+      await api.post(`/api/repos/${repoId}/full-analysis`, null, { timeout: 300_000 });
+      setRerunState(null);
+      if (me) await refresh(me.login);
+    } catch (e) {
+      setRerunState(null);
+      setRowErrors((p) => ({
+        ...p,
+        [repoId]: e?.response?.data?.detail || e.message,
+      }));
+    }
+  };
+
+  const deleteRepo = async (repoId, label) => {
+    if (!window.confirm(`Delete ${label} and all analysis data?`)) return;
+    setRowErrors((p) => ({ ...p, [repoId]: null }));
+    try {
+      await api.delete(`/api/repos/${repoId}`);
+      setRepos((prev) => prev.filter((r) => r.id !== repoId));
+    } catch (e) {
+      setRowErrors((p) => ({
+        ...p,
+        [repoId]: e?.response?.data?.detail || e.message,
+      }));
     }
   };
 
@@ -96,37 +138,75 @@ export default function Dashboard() {
           </div>
         ) : (
           <ul className="space-y-3">
-            {repos.map((r) => (
-              <li key={r.id} className="card flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-sm truncate">
-                      {r.owner}/{r.name}
-                    </span>
-                    <Badge tone={statusTone(r.status, r.has_analysis)}>
-                      {statusLabel(r.status, r.has_analysis)}
-                    </Badge>
+            {repos.map((r) => {
+              const isRerunning = rerunState?.repoId === r.id;
+              const rowError = rowErrors[r.id];
+              return (
+                <li key={r.id} className="card group flex flex-col gap-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-sm truncate">
+                          {r.owner}/{r.name}
+                        </span>
+                        <Badge tone={statusTone(r.status, r.has_analysis)}>
+                          {statusLabel(r.status, r.has_analysis)}
+                        </Badge>
+                      </div>
+                      <div className="text-xs text-textmute mt-1">
+                        Last analyzed: {fmtDate(r.latest_analyzed_at || r.cloned_at)}
+                      </div>
+                    </div>
+                    {isRerunning ? (
+                      <div className="text-xs text-accent flex-shrink-0">
+                        Rerunning…
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {r.has_analysis && (
+                          <button
+                            className="btn btn-secondary text-xs"
+                            onClick={() => rerunRepo(r.id)}
+                            disabled={!!rerunState}
+                            title="Re-run the full analysis pipeline from scratch"
+                          >
+                            Rerun
+                          </button>
+                        )}
+                        <Link
+                          to={`/repos/${r.id}/analysis`}
+                          className="btn btn-secondary text-xs"
+                        >
+                          View Analysis
+                        </Link>
+                        <Link
+                          to={`/repos/${r.id}/interview`}
+                          className="btn btn-primary text-xs"
+                        >
+                          Start Interview
+                        </Link>
+                        <button
+                          onClick={() => deleteRepo(r.id, `${r.owner}/${r.name}`)}
+                          className="text-textmute opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:text-danger transition p-1"
+                          title="Delete repo and all analysis data"
+                          aria-label="Delete repo"
+                        >
+                          <TrashIcon />
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <div className="text-xs text-textmute mt-1">
-                    Last analyzed: {fmtDate(r.latest_analyzed_at || r.cloned_at)}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <Link
-                    to={`/repos/${r.id}/analysis`}
-                    className="btn btn-secondary text-xs"
-                  >
-                    View Analysis
-                  </Link>
-                  <Link
-                    to={`/repos/${r.id}/interview`}
-                    className="btn btn-primary text-xs"
-                  >
-                    Start Interview
-                  </Link>
-                </div>
-              </li>
-            ))}
+                  {isRerunning && (
+                    <RerunProgress stage={rerunState.stage} />
+                  )}
+                  {rowError && (
+                    <div className="text-danger text-xs border border-danger/40 rounded p-2">
+                      {rowError}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </main>
@@ -282,5 +362,57 @@ function AnalyzeRepoModal({ open, onClose, me, onAnalyzed }) {
         </div>
       )}
     </Modal>
+  );
+}
+
+const RERUN_STEPS = [
+  { key: "cleaning", label: "Clearing old analysis" },
+  { key: "parsing", label: "Parsing AST" },
+  { key: "embedding", label: "Generating embeddings" },
+  { key: "analyzing", label: "Running analysis agents" },
+];
+
+function RerunProgress({ stage }) {
+  return (
+    <ol className="text-xs space-y-1 border-t border-border pt-3">
+      {RERUN_STEPS.map((step) => {
+        const order = [...RERUN_STAGES, "done"];
+        const currentIdx = order.indexOf(stage);
+        const stepIdx = order.indexOf(step.key);
+        const done = currentIdx > stepIdx;
+        const active = currentIdx === stepIdx;
+        return (
+          <li
+            key={step.key}
+            className={done ? "text-success" : active ? "text-accent" : "text-textmute"}
+          >
+            {done ? "✓" : active ? "●" : "○"} {step.label}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </svg>
   );
 }

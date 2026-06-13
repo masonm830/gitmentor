@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 
 from app.agents.graph import build_graph
 from app.agents.state import GitMentorState
@@ -35,8 +35,15 @@ async def create_repo(request: RepoRequest):
 
 
 @router.get("/repos")
-async def list_repos(owner: str = Query(..., description="GitHub username — filters repos by owner")):
-    """List previously analyzed repos for a given owner. Powers the dashboard."""
+async def list_repos(
+    response: Response,
+    owner: str = Query(..., description="GitHub username — filters repos by owner"),
+):
+    """List previously analyzed repos for a given owner. Powers the dashboard.
+
+    Always returns fresh data — Cache-Control: no-store prevents browsers and
+    any intermediate proxy from serving a stale list after a delete or rerun.
+    """
     rows = await db.list_repos_by_owner(owner)
     # Annotate each repo with whether it has a stored analysis yet.
     enriched: list[dict] = []
@@ -48,6 +55,7 @@ async def list_repos(owner: str = Query(..., description="GitHub username — fi
             "latest_analysis_id": latest["id"] if latest else None,
             "latest_analyzed_at": latest["created_at"] if latest else None,
         })
+    response.headers["Cache-Control"] = "no-store"
     return {"repos": enriched}
 
 

@@ -47,6 +47,7 @@ export default function Dashboard() {
     setLoading(true);
     try {
       const r = await api.get(`/api/repos`, { params: { owner } });
+      console.log("[Dashboard] /api/repos response:", r.data);
       setRepos(r.data.repos || []);
     } catch (e) {
       setErr(e?.response?.data?.detail || e.message);
@@ -187,7 +188,7 @@ export default function Dashboard() {
                         </Link>
                         <button
                           onClick={() => deleteRepo(r.id, `${r.owner}/${r.name}`)}
-                          className="text-textmute opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:text-danger transition p-1"
+                          className="text-textmute hover:text-danger transition p-1"
                           title="Delete repo and all analysis data"
                           aria-label="Delete repo"
                         >

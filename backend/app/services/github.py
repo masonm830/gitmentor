@@ -134,7 +134,7 @@ async def clone_and_analyze(github_url: str) -> RepoManifest:
         name=name,
         owner=owner,
         cloned_at=datetime.now(timezone.utc),
-        status="analyzed",
+        status="pending",
         files=files,
     )
 

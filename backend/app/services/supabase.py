@@ -65,6 +65,14 @@ async def get_repo(repo_id: str) -> dict | None:
     return result.data[0] if result.data else None
 
 
+async def update_repo_status(repo_id: str, status: str) -> None:
+    """Flip repos.status. Called by /full-analysis after the LangGraph pipeline
+    completes so the dashboard can distinguish 'pending' (manifest only) from
+    'analyzed' (full pipeline done)."""
+    client = get_client()
+    client.table("repos").update({"status": status}).eq("id", repo_id).execute()
+
+
 async def list_repos_by_owner(owner: str) -> list[dict]:
     """Used by Phase 6 dashboard to show 'Your Repositories' for the logged-in user."""
     client = get_client()

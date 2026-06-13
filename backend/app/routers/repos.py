@@ -269,6 +269,8 @@ async def full_analysis(repo_id: str):
         logger.exception("[FullAnalysis] Failed to persist analysis")
         raise HTTPException(status_code=500, detail=f"Pipeline ran but persisting result failed: {exc}")
 
+    await db.update_repo_status(repo_id, "analyzed")
+
     return FullAnalysisResponse(
         analysis_id=analysis_id,
         repo_id=repo_id,
